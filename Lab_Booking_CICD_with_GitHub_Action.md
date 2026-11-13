@@ -440,8 +440,12 @@ model Booking {
 **คำถาม 2.1**: จาก schema นี้ ความสัมพันธ์ระหว่าง `Room` และ `Booking` เป็นแบบใด (one-to-one / one-to-many / many-to-many)? อธิบายเหตุผล
 
 ```plaintext
-# ตอบคำถามที่นี่
+ความสัมพันธ์ระหว่าง Room และ Booking เป็นแบบ One-to-Many (หนึ่งต่อกลุ่ม)
+โดย 1 ห้องพัก (Room) สามารถมีรายการจอง (Booking) ได้หลายรายการ
 
+เหตุผล:
+1. ในโมเดล `Room` มีฟิลด์ `bookings Booking[]` ซึ่งถูกกำหนดให้เป็น List/Array ของโมเดล Booking แสดงว่าห้องพัก 1 ห้องสามารถมีรายการจองที่เชื่อมโยงได้หลายรายการ
+2. ในโมเดล `Booking` มี Foreign Key คือ `roomId Int` และกำหนดความสัมพันธ์ `room Room @relation(fields: [roomId], references: [id])` ซึ่งชี้ไปยังโมเดล `Room` เพียงรายการเดียว (ไม่ใช่ Array) แสดงว่าการจองแต่ละครั้งจะผูกกับห้องพักได้เพียง 1 ห้องเท่านั้น
 ```
 
 ---
@@ -969,8 +973,13 @@ start newman-report.html       # Windows (Git Bash)
 **คำถาม 4.3**: Newman tests ที่เขียนมีการทดสอบทั้ง positive cases (สำเร็จ) และ negative cases (ล้มเหลว) อธิบายให้ครบอย่างน้อย 2 ตัวอย่าง
 
 ```plaintext
-# ตอบคำถามที่นี่
+1. Positive Cases (กรณีทดสอบการทำงานที่ถูกต้อง/สำเร็จ):
+   - ตัวอย่างที่ 1 (`Login - Success`): ส่ง request ไปที่ POST /api/login ด้วย username และ password ที่ถูกต้อง (`admin` / `admin123`) คาดหวังการตอบกลับเป็น HTTP Status 200 OK และตรวจสอบว่า Response Body มี JWT `token` ส่งกลับมาอย่างถูกต้อง
+   - ตัวอย่างที่ 2 (`Create Room (Admin)` / `Get All Rooms`): ส่ง request สร้างห้องพักใหม่พร้อมแนบ Authorization Bearer Token คาดหวัง HTTP Status 201 Created และมี `id` ของห้องที่สร้างขึ้น หรือทดสอบ GET /api/rooms ได้รับ Status 200 OK พร้อมข้อมูลห้องเป็น Array
 
+2. Negative Cases (กรณีทดสอบข้อผิดพลาด/การปฏิเสธการเข้าถึง):
+   - ตัวอย่างที่ 1 (`Login - Wrong Password`): ส่ง request ไปที่ POST /api/login แต่ส่งรหัสผ่านที่ผิด (`wrongpassword`) ระบบต้องปฏิเสธและตอบกลับด้วย HTTP Status 401 Unauthorized เพื่อตรวจสอบว่าผู้ใช้ที่ไม่มีสิทธิ์ไม่สามารถเข้าสู่ระบบได้
+   - ตัวอย่างที่ 2 (`Export Reports - Unauthorized`): ส่ง request ไปที่ GET /api/reports/export โดยไม่มีการแนบ Authorization Bearer Token ใน Header ระบบต้องป้องกันการเข้าถึงข้อมูลรายงานและตอบกลับด้วย HTTP Status 401 Unauthorized
 ```
 
 ---
@@ -995,8 +1004,18 @@ Workflow ที่มีอยู่ใช้ self-hosted runner และทำ
 **คำถาม 5.1**: ทำไม workflow ปัจจุบันถึงใช้ `self-hosted` runner? มีข้อดีข้อเสียอะไรเมื่อเทียบกับ `ubuntu-latest`?
 
 ```plaintext
-# ตอบคำถามที่นี่
+เหตุผลที่ Workflow ปัจจุบันใช้ `self-hosted` runner:
+- ผู้พัฒนาหรือองค์กรอาจต้องการประหยัดเวลา/โควตานาที (Actions Minutes) ของ GitHub หรือต้องการให้ Runner สามารถเข้าถึงเครือข่ายภายใน (Internal Network/Private Database) บนเครื่อง Local ได้โดยตรงโดยไม่ต้องเปิด Public IP
 
+ข้อดีเมื่อเทียบกับ `ubuntu-latest` (GitHub-hosted):
+1. ไม่จำกัดเวลาและฟรี: ไม่ถูกหักโควตานาทีการใช้งานของ GitHub Actions สามารถรัน build/test ได้ยาวนานตามต้องการ
+2. เข้าถึงทรัพยากรภายในได้โดยตรง: สามารถติดต่อ Local Database หรือบริการต่างๆ ภายใน Private Network หรือ Localhost ได้ทันที
+3. ปรับแต่ง Hardware และ Pre-installed Software ได้: สามารถใช้เครื่องที่มี CPU/RAM สูง และทำ Cache ของ Dependencies ขนาดใหญ่ไว้ล่วงหน้า ทำให้ขั้นตอนการ Build/Test รวดเร็วขึ้น
+
+ข้อเสียเมื่อเทียบกับ `ubuntu-latest` (GitHub-hosted):
+1. ภาระในการบำรุงรักษา (Maintenance Overhead): ต้องคอยอัปเดต OS, Security Patches, ติดตั้งเครื่องมือ (Node, Git, Docker) และดูแลพื้นที่ฮาร์ดดิสก์ด้วยตนเอง
+2. ความเสี่ยงด้านความปลอดภัย (Security Risks): สภาพแวดล้อมไม่ได้ถูกสร้างและทำลายทิ้งใหม่ (Non-ephemeral) ข้อมูล Credential หรือ Cache อาจหลงเหลือ และมีความเสี่ยงสูงหากเปิดรับ Pull Request จากภายนอก
+3. ไม่รองรับการ Auto-scale: รองรับการรันงานพร้อมกันได้จำกัดตามจำนวนเครื่องที่มีอยู่จริง ไม่สามารถเพิ่ม Runner ชั่วคราวตามปริมาณงานแบบ On-demand ได้เหมือน GitHub-hosted
 ```
 
 ### ขั้นตอนที่ 5.2: วิเคราะห์ข้อจำกัดของ Workflow ปัจจุบัน
@@ -2464,8 +2483,40 @@ done
 **คำถาม 10.3**: หลังจากตั้งค่า Helmet แล้ว ให้รัน `curl -I http://localhost:3001/api/rooms` และบันทึก headers ที่ได้ อธิบายว่า header แต่ละตัวป้องกันการโจมตีแบบใด
 
 ```plaintext
-# บันทึก headers และคำอธิบายที่นี่
+HTTP Response Headers ที่ได้จากคำสั่ง curl -I:
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
 
+คำอธิบายการป้องกันการโจมตีของแต่ละ Header:
+1. Content-Security-Policy (CSP):
+   - ป้องกัน: Cross-Site Scripting (XSS) และ Data Injection
+   - อธิบาย: ควบคุมแหล่งที่มาของ Scripts, Styles และ Images ที่เบราว์เซอร์ได้รับอนุญาตให้โหลด โดยอนุญาตเฉพาะ Same Origin ('self') จึงช่วยบล็อก inline script ที่ไม่ประสงค์ดีหรือ script จากภายนอก
+2. X-Frame-Options: DENY:
+   - ป้องกัน: Clickjacking Attack
+   - อธิบาย: ห้ามไม่ให้เว็บไซต์อื่นนำหน้าเว็บหรือ API นี้ไปแสดงผลภายในแท็ก <iframe>, <frame> หรือ <object> เพื่อป้องกันไม่ให้ผู้ใช้ถูกหลอกให้คลิกองค์ประกอบที่ซ่อนอยู่
+3. X-Content-Type-Options: nosniff:
+   - ป้องกัน: MIME Type Sniffing Attacks
+   - อธิบาย: สั่งให้เบราว์เซอร์ปฏิบัติตาม MIME Type ที่ระบุใน Content-Type header อย่างเคร่งครัด โดยไม่พยายามเดาชนิดไฟล์เอง ป้องกันไม่ให้ไฟล์ข้อความหรือรูปภาพถูก execute เป็น JavaScript
+4. Strict-Transport-Security (HSTS):
+   - ป้องกัน: Man-in-the-Middle (MitM) Attacks และ SSL Stripping
+   - อธิบาย: บังคับให้เบราว์เซอร์ต้องสื่อสารผ่านโปรโตคอล HTTPS ที่มีการเข้ารหัสเท่านั้นตลอดระยะเวลาที่กำหนด (max-age 1 ปี) และรวมถึง Subdomains ทั้งหมด
+5. Referrer-Policy: no-referrer:
+   - ป้องกัน: Sensitive Information Leakage ผ่าน URL Referer
+   - อธิบาย: ไม่ส่ง URL ปัจจุบันไปยังเว็บไซต์ปลายทางเมื่อมีการคลิกลิงก์ ป้องกันข้อมูล query parameters ที่มีความลับรั่วไหล
+6. Cross-Origin-Opener-Policy (COOP) & Cross-Origin-Resource-Policy (CORP):
+   - ป้องกัน: Cross-Origin Data Leaks และ Side-Channel Attacks (เช่น Spectre)
+   - อธิบาย: แยก browsing context ออกจากหน้าต่างอื่น และอนุญาตให้โหลดทรัพยากรเฉพาะจาก same-origin เท่านั้น
 ```
 
 ---
@@ -2655,24 +2706,68 @@ options: >-
 อธิบายความแตกต่างระหว่าง Continuous Integration (CI) และ Continuous Deployment (CD) พร้อมยกตัวอย่างจาก workflow ที่สร้างในการทดลองนี้
 
 ```plaintext
-# ตอบที่นี่
+1. Continuous Integration (CI):
+   - ความหมาย: กระบวนการรวมโค้ดของนักพัฒนาเข้าสู่ Shared Repository ร่วมกันอย่างต่อเนื่องและสม่ำเสมอ โดยระบบจะทำการ Build โค้ด และรัน Automated Tests โดยอัตโนมัติทันทีที่มีการเปลี่ยนแปลง เพื่อตรวจหาข้อผิดพลาดหรือความขัดแย้งของโค้ดให้เร็วที่สุด (Fail Fast)
+   - ตัวอย่างใน Workflow ของการทดลองนี้:
+     • Job `backend-test`: สร้าง PostgreSQL service container ชั่วคราว, รัน Prisma Migration, Seed ข้อมูลทดสอบ และรัน Newman API Tests เพื่อทดสอบความถูกต้องของ API endpoints ทั้งหมด
+     • Job `frontend-build`: ติดตั้ง dependencies (`npm ci`) และคอมไพล์โค้ด React ด้วย `vite build` เพื่อตรวจสอบว่าไม่มี syntax หรือ build errors
+     • Job `security-scan`: รัน `npm audit` ตรวจสอบ dependencies, `TruffleHog` สแกนหา secrets/credentials ที่อาจหลุดใน Git history และ `OWASP Dependency-Check` ตรวจสอบช่องโหว่ความปลอดภัย
 
+2. Continuous Deployment (CD):
+   - ความหมาย: กระบวนการนำโค้ดที่ผ่านขั้นตอน CI (ผ่านการทดสอบและ build สำเร็จครบถ้วน) ไป Deploy สู่ Production Environment หรือ Staging โดยอัตโนมัติแบบไร้รอยต่อโดยไม่ต้องมีการกด Approve หรือใช้คนดำเนินการด้วยมือ (Manual Intervention)
+   - ตัวอย่างใน Workflow ของการทดลองนี้:
+     • Job `deploy-frontend`: Deploy โค้ดส่วน Frontend ไปยัง Vercel โดยอัตโนมัติเมื่อมีการ push เข้าสู่ branch `main`
+     • Job `deploy-backend-render`: ยิง Webhook (Deploy Hook) ไปยัง Render เพื่อ Trigger การ build และ deploy Backend service โดยอัตโนมัติ
+     • Job `post-deploy-smoke-test`: รันการทดสอบพื้นฐาน (Smoke Tests) ทันทีหลัง deploy เสร็จบน Production URLs เพื่อยืนยันว่าระบบออนไลน์และทำงานได้จริง
 ```
 
 **คำถาม 2 — Multi-Service Architecture**:
 ในโปรเจกต์นี้ Frontend และ Backend ถูก deploy แยกกัน (Vercel vs Render) มีข้อดีและข้อเสียอะไรเมื่อเทียบกับการ deploy บน server เดียวกัน?
 
 ```plaintext
-# ตอบที่นี่
+ข้อดีของการ Deploy แยกกัน (Vercel vs Render):
+1. การเลือกแพลตฟอร์มที่เหมาะสมที่สุดสำหรับแต่ละประเภทงาน (Specialized Platforms):
+   - Frontend (React/Vite SPA) เป็นไฟล์ Static (HTML, CSS, JS) Vercel มีระบบ Global Edge CDN ทำให้แคชและส่งมอบไฟล์แก่ผู้ใช้ทั่วโลกได้อย่างรวดเร็วมาก มี Latency ต่ำ และรองรับ Traffic มหาศาลได้ดี
+   - Backend (Node.js/Express + Prisma + PostgreSQL) ต้องการ Compute Resources แบบ Stateful และรัน Background Process ต่อเนื่อง ซึ่ง Render ถูกออกแบบมาให้จัดการ Web Service, Database และ Docker Container ได้อย่างมีประสิทธิภาพ
+2. การขยายระบบได้อย่างอิสระ (Independent Scalability):
+   - สามารถ Scale เฉพาะ Frontend หรือ Backend ตามปริมาณการใช้งานจริง เช่น เมื่อมีผู้เข้าชมหน้าเว็บจำนวนมากแต่มี API traffic น้อย ก็ขยายเฉพาะ Frontend CDN โดยไม่ต้องสิ้นเปลืองทรัพยากรฝั่ง Backend
+3. การพัฒนาและการ Deploy ที่เป็นอิสระต่อกัน (Decoupled Deployments):
+   - การแก้ UI/Styling บน Frontend สามารถ build และ deploy ได้ทันทีโดยไม่รบกวนหรือทำให้ Backend ต้องรีสตาร์ท และในทางกลับกัน
+4. การแยกความเสียหายไม่ให้ลามทั้งระบบ (Fault Isolation):
+   - หาก Backend ล่มหรือกำลังรีสตาร์ท ตัวหน้าเว็บ Frontend ยังคงเปิดได้ตามปกติ และสามารถแสดงหน้า UI แจ้งเตือนข้อผิดพลาดได้อย่างนุ่มนวล
 
+ข้อเสียของการ Deploy แยกกัน:
+1. ปัญหาเรื่อง CORS (Cross-Origin Resource Sharing):
+   - Frontend และ Backend อยู่คนละ Domain (เช่น xxx.vercel.app และ yyy.onrender.com) ทำให้เบราว์เซอร์จะตรวจสอบ CORS Policy ต้องมีการตั้งค่า CORS Middleware ฝั่ง Backend ให้ถูกต้องและรัดกุม
+2. เพิ่มความซับซ้อนในการจัดการและการตั้งค่า (Operational Complexity):
+   - ต้องบริหารจัดการ 2 แพลตฟอร์ม (2 Dashboards, 2 รูปแบบ Environment Variables/Secrets, และการ Monitor 2 ที่)
+3. ความหน่วงของเครือข่ายระหว่าง Services (Network Latency):
+   - ทุกครั้งที่ Frontend ติดต่อ Backend จะต้องส่ง Request ผ่านเครือข่ายอินเทอร์เน็ตสาธารณะ (Public Internet) ซึ่งช้ากว่าการเรียกผ่าน Localhost หรือ Internal Network ภายในเครื่องเดียวกัน
+4. ปัญหา Cold Start บน Free Tier:
+   - บริการฟรีของ Render จะหยุดทำงาน (Spin down / Sleep) หากไม่มี Request เข้ามาเป็นเวลานาน ทำให้ Request แรกที่มาจาก Frontend ต้องรอโหลดนานเป็นพิเศษ (อาจใช้เวลา 30-50 วินาที)
 ```
 
 **คำถาม 3 — API Testing vs Smoke Testing**:
 Newman CI tests ต่างจาก Post-Deploy Smoke Tests อย่างไร? ทำไมถึงต้องมีทั้งสองแบบ? ยกตัวอย่างสถานการณ์ที่ CI tests ผ่านแต่ Smoke Tests ล้มเหลวได้หรือไม่?
 
 ```plaintext
-# ตอบที่นี่
+1. ความแตกต่างระหว่าง Newman CI tests กับ Post-Deploy Smoke Tests:
+   - Newman CI tests (Pre-deployment):
+     • รันบนสภาพแวดล้อมจำลอง (Ephemeral Environment) ใน GitHub Actions Runner ก่อนการ deploy
+     • ทดสอบครอบคลุมลึกทุกมิติ: ทดสอบทั้งกรณีสำเร็จ (Happy Path), กรณีล้มเหลว (Negative Cases/Boundary Tests), ตรวจสอบ Data Validation, และทดสอบการสร้าง/แก้ไข/ลบข้อมูล (CRUD operations)
+   - Post-Deploy Smoke Tests (Post-deployment):
+     • รันบนระบบจริง (Production Environment) ทันทีหลังการ deployment สำเร็จ
+     • เน้นตรวจสอบความพร้อมใช้งานขั้นพื้นฐานแบบรวดเร็ว (Sanity Check) ว่าระบบไม่พัง/ไม่เกิดควัน (No Smoke) เช่น เช็คว่า Server ตอบสนอง HTTP 200, Health check ผ่าน, Login ได้ และ Security Headers ครบ โดยเน้นการอ่านข้อมูล (Read-only) เพื่อไม่ให้กระทบหรือสร้างข้อมูลขยะใน Production Database
 
+2. ทำไมถึงต้องมีทั้งสองแบบ:
+   - CI tests รับประกันว่า "โค้ดและ Business Logic ถูกต้อง ไม่มีบั๊กในระดับโปรแกรม" ก่อนนำไปใช้งาน
+   - Smoke tests รับประกันว่า "การนำโค้ดไปติดตั้งบนสภาพแวดล้อมจริง (Cloud Infrastructure) ทำงานได้สมบูรณ์" ตรวจสอบสิ่งแวดล้อมภายนอก เช่น การตั้งค่า Environment Variables, DNS, SSL/TLS, Network Routing และ Database Connection จริงบน Production
+
+3. ตัวอย่างสถานการณ์ที่ CI tests ผ่าน แต่ Smoke Tests ล้มเหลว:
+   - สถานการณ์ที่ 1 (Environment Variables / Secrets ผิดพลาด): ลืมตั้งค่าหรือใส่ค่า `DATABASE_URL` หรือ `JWT_SECRET` บน Render ผิด ทำให้ Backend บน Production ไม่สามารถต่อ Database จริงได้ และตอบกลับ HTTP 500 (ในขณะที่ CI ผ่านเพราะ CI ใช้ PostgreSQL container จำลองและ config แยกต่างหาก)
+   - สถานการณ์ที่ 2 (Database Schema Migration บน Production ยังไม่ถูกรัน): โค้ดเวอร์ชันใหม่มีการเพิ่มคอลัมน์ใหม่ในตาราง แต่บน Production Database ยังไม่ได้รัน migration ทำให้ API ล่มเมื่อ query
+   - สถานการณ์ที่ 3 (ปัญหา CORS Policy บน Cloud): ไม่ได้เพิ่ม URL ของ Vercel เข้าไปในรายการ `ALLOWED_ORIGINS` ของ Backend บน Render ทำให้ Request จากผู้ใช้จริงถูกบล็อก
+   - สถานการณ์ที่ 4 (Out of Memory / Cold Start Timeout): Render instance สเปกไม่พอ หรือใช้เวลาโหลดนานเกินกว่า Timeout ของ HTTP request
 ```
 
 **คำถาม 4 — Security Layers**:
@@ -2680,33 +2775,92 @@ Newman CI tests ต่างจาก Post-Deploy Smoke Tests อย่างไ
 
 | ชั้น | เครื่องมือ | ป้องกันอะไร |
 |---|---|---|
-| Runtime | Helmet.js | ? |
-| Runtime | express-rate-limit | ? |
-| Runtime | CORS | ? |
-| Runtime | bcryptjs | ? |
-| CI Pipeline | npm audit | ? |
-| CI Pipeline | TruffleHog | ? |
-| CI Pipeline | OWASP Dep-Check | ? |
+| Runtime | Helmet.js | Web vulnerabilities บน HTTP Headers (XSS, Clickjacking, MIME sniffing, บังคับใช้ HTTPS) |
+| Runtime | express-rate-limit | Brute force attacks, DDoS และ API scraping โดยจำกัดจำนวน requests ต่อ IP |
+| Runtime | CORS | Cross-origin requests จากโดเมนภายนอกที่ไม่ได้รับอนุญาต |
+| Runtime | bcryptjs | การรั่วไหลของ plain-text password ด้วยการทำ salted one-way hash |
+| CI Pipeline | npm audit | Known vulnerabilities (CVEs) ใน dependencies ของโปรเจกต์ |
+| CI Pipeline | TruffleHog | Hardcoded secrets, API keys, credentials รั่วไหลใน Git history |
+| CI Pipeline | OWASP Dep-Check | ช่องโหว่ความปลอดภัยใน Software Supply Chain เทียบกับฐานข้อมูล CVE/NVD |
 
 ```plaintext
-# ตอบที่นี่
+สรุปการป้องกันความปลอดภัยแต่ละชั้น:
 
+1. Runtime — Helmet.js:
+   - ป้องกัน: ช่องโหว่ Web Security ทั่วไปผ่านการตั้งค่า HTTP Response Headers เช่น
+     • ป้องกัน Cross-Site Scripting (XSS) และ Data Injection ด้วย `Content-Security-Policy` (CSP)
+     • ป้องกัน Clickjacking ด้วย `X-Frame-Options: DENY` (ห้ามไม่ให้เว็บถูกนำไปฝังใน <iframe>)
+     • ป้องกัน MIME Type Sniffing ด้วย `X-Content-Type-Options: nosniff`
+     • บังคับใช้การเชื่อมต่อแบบปลอดภัยผ่าน HTTPS เสมอด้วย `Strict-Transport-Security` (HSTS)
+
+2. Runtime — express-rate-limit:
+   - ป้องกัน: Brute Force Attacks (การพยายามสุ่มรหัสผ่านซ้ำๆ เช่น ในหน้า /api/login), Denial of Service (DoS/DDoS) และ API Scraping (การดูดข้อมูล) โดยการจำกัดจำนวน requests สูงสุดที่ client (IP address) สามารถส่งมาได้ในช่วงเวลาที่กำหนด หากเกินจะตอบกลับด้วย HTTP 429 Too Many Requests
+
+3. Runtime — CORS (Cross-Origin Resource Sharing):
+   - ป้องกัน: การเข้าถึง API จากโดเมนภายนอกที่ไม่ได้รับอนุญาต (Unauthorized Cross-Origin Requests) โดยกำหนด Whitelist อนุญาตให้เฉพาะ Domain ของ Frontend เราเท่านั้นที่สามารถเรียกใช้ API ผ่านเว็บเบราว์เซอร์ได้ ป้องกันไม่ให้เว็บไซต์อันตรายแอบส่งคำขอมาทำอันตรายต่อผู้ใช้
+
+4. Runtime — bcryptjs:
+   - ป้องกัน: การรั่วไหลของรหัสผ่านในรูปแบบข้อความธรรมดา (Plain-text Password Leakage) โดยการทำ One-way Cryptographic Hashing พร้อมใส่ Salt หากฐานข้อมูลถูกขโมย ผู้โจมตีก็ไม่สามารถล่วงรู้รหัสผ่านจริงได้ และป้องกันการถอดรหัสผ่านด้วย Rainbow Table
+
+5. CI Pipeline — npm audit:
+   - ป้องกัน: การใช้งาน Third-party Dependencies / Packages ที่มีช่องโหว่ความปลอดภัยที่ทราบแล้ว (Known CVEs) โดยจะหยุดการ Build ทันทีหากตรวจพบช่องโหว่ความปลอดภัยระดับ High หรือ Critical ใน package-lock.json
+
+6. CI Pipeline — TruffleHog:
+   - ป้องกัน: Secret Leaks หรือการเผลอ Commit ข้อมูลสำคัญเข้าสู่ Version Control เช่น API Keys, Database Credentials, Passwords, หรือ Private Keys โดยจะสแกนประวัติการ Commit ใน Git อย่างละเอียด
+
+7. CI Pipeline — OWASP Dep-Check (OWASP Dependency-Check):
+   - ป้องกัน: ช่องโหว่ใน Software Supply Chain โดยตรวจสอบรายชื่อ Dependencies ทั้งหมดเทียบกับฐานข้อมูล National Vulnerability Database (NVD) ของ NIST เพื่อค้นหาและรายงานความเสี่ยงของ CVE อย่างละเอียด
 ```
 
 **คำถาม 5 — Secrets Management**:
 เหตุใดจึงต้องใช้ GitHub Secrets แทนการเขียนค่า credentials โดยตรงใน workflow YAML file? ถ้าใส่ค่า JWT_SECRET ตรงๆ ใน YAML จะเกิดอะไรขึ้น?
 
 ```plaintext
-# ตอบที่นี่
+เหตุผลที่ต้องใช้ GitHub Secrets แทนการเขียน credentials ในไฟล์ YAML:
+1. การเข้ารหัสและความปลอดภัยของข้อมูล (Encryption at Rest):
+   - GitHub Secrets จะถูกเข้ารหัสอย่างปลอดภัยด้วย Libsodium Sealed Box ก่อนจัดเก็บ และจะถูกถอดรหัสส่งให้ Runner เฉพาะเมื่อถึงขั้นตอนการรัน Workflow เท่านั้น แม้แต่เจ้าของ Repository ก็ไม่สามารถคลิกดูค่าเดิมแบบ Plain Text ได้
+2. ป้องกันข้อมูลสำคัญรั่วไหลสู่ Version Control (Prevent Git Leaks):
+   - ไฟล์ Workflow YAML อยู่ใน Git Repository หากเป็น Public Repo ทุกคนทั่วโลกจะมองเห็นข้อมูลลับได้ทันที หรือแม้เป็น Private Repo บุคคลทุกคนที่มีสิทธิ์ Read/Clone ก็จะเข้าถึง Credential ทั้งหมดได้ และค่านั้นจะติดอยู่ใน Git Commit History ตลอดไป
+3. การปกปิดค่าใน Log อัตโนมัติ (Automatic Log Masking):
+   - ค่าที่ถูกดึงมาจาก GitHub Secrets จะถูกระบบ Mask เปลี่ยนเป็นเครื่องหมาย `***` ใน Console Logs โดยอัตโนมัติ ช่วยป้องกันการเผลอพิมพ์หรือหลุดค่าลับในหน้ารายงานผล
+4. ความยืดหยุ่นในการสลับ Environment และ Secret Rotation:
+   - สามารถเปลี่ยนหรือหมุนเวียน (Rotate) Token/Password ได้ทันทีผ่านหน้าเว็บ GitHub Settings โดยไม่ต้องแก้ไขโค้ดหรือทำ Commit ใหม่
 
+ถ้าใส่ค่า JWT_SECRET ตรงๆ ใน YAML จะเกิดอะไรขึ้น:
+1. การปลอมแปลง Token และสิทธิ์การใช้งานพังทลาย (Token Forgery & Total Auth Bypass):
+   - ใครก็ตามที่เห็นโค้ดจะสามารถนำค่า `JWT_SECRET` ไป Sign เพื่อสร้าง JWT Token ปลอมขึ้นมาเองได้ โดยสามารถกำหนด Role เป็น `admin` ได้ตามใจชอบ ทำให้ผู้โจมตีเข้าถึง API ทั้งหมด จัดการลบ/แก้ไขข้อมูล หรือขโมยข้อมูลผู้ใช้ได้โดยไม่ต้องรู้รหัสผ่านใดๆ เลย
+2. ข้อมูลลับจะฝังติดอยู่ในประวัติของ Git (Permanent Git History):
+   - ถึงแม้ภายหลังจะลบค่าออกจาก YAML แล้ว แต่ค่าดังกล่าวยังคงบันทึกอยู่ใน Git Commit ย้อนหลัง ใครก็ตามที่ Clone Repo ไปก็สามารถใช้คำสั่ง `git log -p` หรือ Git inspection tools ดึงค่าออกมาได้
+3. เสี่ยงต่อการหลุดใน Workflow Logs:
+   - ค่า Plain-text ในไฟล์ YAML จะไม่ได้รับการ Mask จาก GitHub ทำให้อาจหลุดไปปรากฏใน Action Logs ให้ผู้ที่เข้ามาดูเห็นได้อย่างชัดเจน
 ```
 
 **คำถาม 6 — Branch Strategy**:
 อธิบาย Git Flow ที่ใช้ในโปรเจกต์นี้ (develop → staging → main) ทำไมต้องมีหลาย environment แทนที่จะ deploy ตรงจาก develop ไป production เลย?
 
 ```plaintext
-# ตอบที่นี่
+อธิบาย Git Flow ที่ใช้ในโปรเจกต์นี้ (develop → staging → main):
+1. `feature/*`: นักพัฒนาแตก Branch ออกมาจาก `develop` เพื่อพัฒนาแต่ละฟีเจอร์ เมื่อ Push ขึ้นระบบจะรันเฉพาะ CI Tests (Unit/Integration Tests, Lint) เท่านั้น โดยไม่มีการ Deploy
+2. `develop` (เชื่อมกับ QA Environment):
+   - เมื่อพัฒนาฟีเจอร์เสร็จและผ่านการ Review จะทำการ Merge เข้า Branch `develop`
+   - ระบบจะ Trigger Pipeline ทำการ Auto-deploy ไปยัง **QA Environment** เพื่อให้ทีมนักพัฒนาและ QA เข้ามาทดสอบฟังก์ชันการทำงานร่วมกันของระบบ (Integration & Functional Testing)
+3. `staging` (เชื่อมกับ Staging Environment):
+   - เมื่อผ่านการทดสอบใน QA แล้ว จะ Merge โค้ดเข้าสู่ Branch `staging`
+   - ระบบจะ Auto-deploy ไปยัง **Staging Environment** ซึ่งจำลองโครงสร้างพื้นฐาน, การตั้งค่า, Network และขนาดฐานข้อมูลให้เหมือน Production จริง 100%
+   - ใช้สำหรับทำ User Acceptance Testing (UAT), Performance/Load Testing, Security Pen-testing และซักซ้อมการ Deploy
+4. `main` (เชื่อมกับ Production Environment):
+   - เมื่อระบบผ่านการทดสอบและได้รับการอนุมัติ (Sign-off) เรียบร้อย โค้ดจะถูก Merge เข้าสู่ Branch `main`
+   - ระบบจะ Trigger Full CI/CD Pipeline ทำการ Auto-deploy ไปยัง **Production Environment** (Vercel และ Render) และรัน Post-deployment Smoke Tests ทันที
 
+ทำไมต้องมีหลาย Environment แทนที่จะ Deploy ตรงจาก develop ไป production เลย:
+1. ลดความเสี่ยงต่อการเกิดระบบล่มบน Production (Minimizing Production Downtime & Business Risk):
+   - Branch `develop` เป็นพื้นที่ที่มีการ Merge โค้ดใหม่เข้ามาอย่างต่อเนื่องและยังมีความไม่แน่นอนสูง หาก Deploy ตรงไปยัง Production บั๊กหรือข้อผิดพลาดที่ไม่คาดคิดจะส่งผลกระทบต่อผู้ใช้งานจริงทันที และอาจสร้างความเสียหายร้ายแรงต่อธุรกิจ
+2. การทดสอบบนสภาพแวดล้อมที่เสมือนจริง (Environment Parity):
+   - โค้ดที่รันผ่านบนเครื่อง Local หรือ QA อาจมีปัญหาเมื่อเจอกับสภาพแวดล้อมจริง เช่น ปัญหาเรื่อง SSL, Cloud Networking, Load Balancer หรือ ปริมาณข้อมูลจริง การมี Staging ช่วยให้ตรวจพบปัญหาก่อนถึงมือผู้ใช้จริง
+3. กระบวนการตรวจสอบและอนุมัติคุณภาพ (Quality Gates & Release Approval):
+   - ช่วยให้มีขั้นตอนการทดสอบ UAT และการตรวจสอบจาก Product Owner และทีมความปลอดภัย เพื่อความมั่นใจก่อนเปิดตัว
+4. การซักซ้อมการ Migrate ฐานข้อมูล (Safe Database Migration):
+   - ช่วยให้สามารถทดสอบรันคำสั่ง Database Migration บน Staging เพื่อตรวจสอบว่า Migration Script ทำงานถูกต้อง ไม่เกิด Table Lock หรือทำให้ข้อมูลเดิมเสียหาย ก่อนนำไปรันบนฐานข้อมูลจริง
 ```
 
 ---
